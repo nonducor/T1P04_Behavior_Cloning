@@ -21,6 +21,14 @@ app = Flask(__name__)
 model = None
 prev_image_array = None
 
+import tensorflow as tf
+from keras.backend.tensorflow_backend import set_session
+config = tf.ConfigProto()
+config.gpu_options.allow_growth = True  # dynamically grow the memory used on the GPU
+config.log_device_placement = True  # to log device placement (on which device the operation ran)
+                                    # (nothing gets printed in Jupyter, only if you run it standalone)
+sess = tf.Session(config=config)
+set_session(sess)  # set this TensorFlow session as the default session for Keras
 
 class SimplePIController:
     def __init__(self, Kp, Ki):
@@ -41,11 +49,6 @@ class SimplePIController:
         self.integral += self.error
 
         return self.Kp * self.error + self.Ki * self.integral
-
-
-controller = SimplePIController(0.1, 0.002)
-set_speed = 9
-controller.set_desired(set_speed)
 
 
 @sio.on('telemetry')
@@ -108,6 +111,14 @@ if __name__ == '__main__':
         default='',
         help='Path to image folder. This is where the images from the run will be saved.'
     )
+    parser.add_argument(
+        '--speed',
+        dest='speed',
+        type=int,
+        nargs='?',
+        default=9,
+        help='Path to image folder. This is where the images from the run will be saved.'
+    )
     args = parser.parse_args()
 
     # check that model Keras version is same as local Keras version
@@ -120,6 +131,12 @@ if __name__ == '__main__':
               ', but the model was built using ', model_version)
 
     model = load_model(args.model)
+
+    if args.speed > 30:
+        print('Warning: maximum playable speed is 30!')
+        args.speed = 30
+    controller = SimplePIController(0.1, 0.002)
+    controller.set_desired(args.speed)
 
     if args.image_folder != '':
         print("Creating image folder at {}".format(args.image_folder))
